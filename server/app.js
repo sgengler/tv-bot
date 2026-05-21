@@ -23,8 +23,12 @@ function createOAuthClient() {
 function loadTokens(client) {
   const path = tokensPath();
   if (!existsSync(path)) return false;
-  client.setCredentials(JSON.parse(readFileSync(path, 'utf8')));
-  return true;
+  try {
+    client.setCredentials(JSON.parse(readFileSync(path, 'utf8')));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function saveTokens(tokens) {
@@ -64,7 +68,7 @@ app.get('/api/photos', async (req, res) => {
   }
 
   // Persist refreshed tokens automatically
-  client.on('tokens', (newTokens) => {
+  client.once('tokens', (newTokens) => {
     const existing = existsSync(tokensPath())
       ? JSON.parse(readFileSync(tokensPath(), 'utf8'))
       : {};
@@ -142,7 +146,9 @@ app.get('/api/photos', async (req, res) => {
 // Serve built React app; only active after `npm run build`
 app.use(express.static(DIST_PATH));
 app.get('*', (req, res) => {
-  res.sendFile(join(DIST_PATH, 'index.html'));
+  res.sendFile(join(DIST_PATH, 'index.html'), (err) => {
+    if (err) res.status(404).send('App not built. Run npm run build.');
+  });
 });
 
 export default app;
