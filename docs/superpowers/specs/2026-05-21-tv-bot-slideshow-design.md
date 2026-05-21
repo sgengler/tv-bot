@@ -7,7 +7,7 @@
 
 A Raspberry Pi app that displays a fullscreen, auto-advancing slideshow of images from a specific Google Photos album on a connected TV. The Pi boots directly into kiosk mode, no interaction required. Built with React + Vite (frontend) and Node.js/Express (backend).
 
-The existing project on port 3000 is unaffected; this app runs on port 3001.
+The existing project on port 3001 is unaffected; this app runs on port 3002.
 
 ---
 
@@ -16,7 +16,7 @@ The existing project on port 3000 is unaffected; this app runs on port 3001.
 Two processes run on the Pi, managed by systemd:
 
 1. **Express server (port 3001)** — handles Google Photos OAuth, token management, and serves the built React app as static files
-2. **Chromium kiosk** — launches on boot, opens `http://localhost:3001`, fullscreen with no chrome/UI
+2. **Chromium kiosk** — launches on boot, opens `http://localhost:3002`, fullscreen with no chrome/UI
 
 In development (Mac), Vite's dev server runs alongside Express, proxying `/api` requests to Express. In production (Pi), `dist/` is built once and served by Express.
 
@@ -24,7 +24,7 @@ In development (Mac), Vite's dev server runs alongside Express, proxying `/api` 
 [Chromium kiosk]
       |
       v
-[Express :3001]
+[Express :3002]
   ├── GET /           → serves dist/ (React app)
   ├── GET /api/photos → proxies to Google Photos API
   └── GET /auth/callback → one-time OAuth setup
@@ -50,9 +50,9 @@ In development (Mac), Vite's dev server runs alongside Express, proxying `/api` 
 ```
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-GOOGLE_REDIRECT_URI=http://localhost:3001/auth/callback
+GOOGLE_REDIRECT_URI=http://localhost:3002/auth/callback
 ALBUM_NAME=My TV Album
-PORT=3001
+PORT=3002
 ```
 
 ---
@@ -87,10 +87,10 @@ PORT=3001
 
 1. Create a Google Cloud project at console.cloud.google.com
 2. Enable the **Photos Library API**
-3. Create OAuth 2.0 credentials (type: Web application), add `http://localhost:3001/auth/callback` as an authorized redirect URI
+3. Create OAuth 2.0 credentials (type: Web application), add `http://localhost:3002/auth/callback` as an authorized redirect URI
 4. Copy client ID and secret into `.env` on the Pi
 5. Set `ALBUM_NAME` in `.env` to the exact name of your Google Photos album
-6. SSH into the Pi, run `npm start`, then open `http://<pi-ip>:3001/auth` from a browser to complete the OAuth flow
+6. SSH into the Pi, run `npm start`, then open `http://<pi-ip>:3002/auth` from a browser to complete the OAuth flow
 7. `tokens.json` is written — setup complete, server can now run headlessly
 
 ---
@@ -134,7 +134,7 @@ ExecStart=/usr/bin/chromium-browser \
   --noerrdialogs \
   --disable-infobars \
   --incognito \
-  http://localhost:3001
+  http://localhost:3002
 Restart=on-failure
 
 [Install]
@@ -149,7 +149,7 @@ WantedBy=graphical.target
 npm run dev   # starts Express + Vite dev server concurrently
 ```
 
-Vite proxies `/api/*` to `http://localhost:3001` so the frontend talks to the real Express backend during development.
+Vite proxies `/api/*` to `http://localhost:3002` so the frontend talks to the real Express backend during development.
 
 **Scripts (package.json):**
 - `dev` — `concurrently "node server/index.js" "vite"`
