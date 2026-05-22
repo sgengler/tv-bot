@@ -16,8 +16,8 @@ export default function App() {
         return;
       }
       const data = await res.json();
-      if (data.length === 0) {
-        setError('No photos found in album');
+      if (!Array.isArray(data) || data.length === 0) {
+        setError('No photos found in album.');
         return;
       }
       setPhotos(data);

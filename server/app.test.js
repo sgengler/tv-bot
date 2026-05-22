@@ -1,97 +1,126 @@
 // @vitest-environment node
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
-import { writeFileSync, unlinkSync, existsSync } from 'fs';
-import { join } from 'path';
-import { google } from 'googleapis';
 import app from './app.js';
 
-const TEST_TOKENS_PATH = join(process.cwd(), 'tokens.test.json');
+const SHARE_URL = 'https://lightroom.adobe.com/shares/abc123';
+const SPACE_ID = 'space456';
+const ALBUM_ID = 'album789';
+const HTML_WITH_IDS = `<html><body>spaces/${SPACE_ID}/albums/${ALBUM_ID}</body></html>`;
+
+const ASSETS_RESPONSE = JSON.stringify({
+  resources: [
+    {
+      asset: {
+        links: {
+          '/rels/rendition_type/2048': {
+            href: `v2/spaces/${SPACE_ID}/assets/img1/renditions/2048`,
+          },
+        },
+      },
+    },
+    {
+      asset: {
+        links: {
+          '/rels/rendition_type/2048': {
+            href: `v2/spaces/${SPACE_ID}/assets/img2/renditions/2048`,
+          },
+        },
+      },
+    },
+  ],
+});
 
 beforeEach(() => {
-  process.env.GOOGLE_CLIENT_ID = 'test-client-id';
-  process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
-  process.env.GOOGLE_REDIRECT_URI = 'http://localhost:3002/auth/callback';
-  process.env.ALBUM_NAME = 'Test Album';
-  process.env.TOKENS_PATH = TEST_TOKENS_PATH;
-  // Prevent real Google API token refresh calls
-  vi.spyOn(google.auth.OAuth2.prototype, 'getAccessToken')
-    .mockResolvedValue({ token: 'fake-token' });
+  process.env.LIGHTROOM_SHARE_URL = SHARE_URL;
 });
 
 afterEach(() => {
-  if (existsSync(TEST_TOKENS_PATH)) unlinkSync(TEST_TOKENS_PATH);
+  delete process.env.LIGHTROOM_SHARE_URL;
   vi.restoreAllMocks();
-});
-
-describe('GET /auth', () => {
-  test('redirects to Google OAuth consent screen', async () => {
-    const res = await request(app).get('/auth');
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain('accounts.google.com');
-    expect(res.headers.location).toContain('photoslibrary.readonly');
-  });
+  vi.unstubAllGlobals();
 });
 
 describe('GET /api/photos', () => {
-  test('returns 401 when tokens.json does not exist', async () => {
+  test('returns 500 when LIGHTROOM_SHARE_URL is not set', async () => {
+    delete process.env.LIGHTROOM_SHARE_URL;
     const res = await request(app).get('/api/photos');
-    expect(res.status).toBe(401);
-    expect(res.body.error).toMatch(/Not authenticated/);
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/LIGHTROOM_SHARE_URL/);
   });
 
-  test('returns empty array when album is not found', async () => {
-    writeFileSync(TEST_TOKENS_PATH, JSON.stringify({
-      access_token: 'fake-token',
-      refresh_token: 'fake-refresh',
-      expiry_date: Date.now() + 3600000,
-    }));
+  test('returns 502 when share page fetch fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+    const res = await request(app).get('/api/photos');
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/Share page returned 404/);
+  });
 
+  test('returns 502 when album IDs cannot be found in share page', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ albums: [] }),
+      text: () => Promise.resolve('<html>no ids here</html>'),
     }));
-
     const res = await request(app).get('/api/photos');
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
-
-    vi.unstubAllGlobals();
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/Could not find album path/);
   });
 
-  test('returns photo URLs when album is found', async () => {
-    writeFileSync(TEST_TOKENS_PATH, JSON.stringify({
-      access_token: 'fake-token',
-      refresh_token: 'fake-refresh',
-      expiry_date: Date.now() + 3600000,
-    }));
-
+  test('returns 502 when assets API fetch fails', async () => {
     vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(HTML_WITH_IDS) })
+      .mockResolvedValueOnce({ ok: false, status: 403 }),
+    );
+    const res = await request(app).get('/api/photos');
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/Assets API returned 403/);
+  });
+
+  test('returns photo URLs when album has images', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(HTML_WITH_IDS) })
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({
-          albums: [{ id: 'album-123', title: 'Test Album' }],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({
-          mediaItems: [
-            { baseUrl: 'https://photos.google.com/img1', mimeType: 'image/jpeg' },
-            { baseUrl: 'https://photos.google.com/img2', mimeType: 'image/jpeg' },
-            { baseUrl: 'https://photos.google.com/vid1', mimeType: 'video/mp4' },
-          ],
-        }),
+        text: () => Promise.resolve(`while (1) {}\n${ASSETS_RESPONSE}`),
       }),
     );
 
     const res = await request(app).get('/api/photos');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([
-      'https://photos.google.com/img1=w1920-h1080',
-      'https://photos.google.com/img2=w1920-h1080',
+      `https://lightroom.adobe.com/v2c/spaces/${SPACE_ID}/v2/spaces/${SPACE_ID}/assets/img1/renditions/2048`,
+      `https://lightroom.adobe.com/v2c/spaces/${SPACE_ID}/v2/spaces/${SPACE_ID}/assets/img2/renditions/2048`,
     ]);
+  });
 
-    vi.unstubAllGlobals();
+  test('strips while(1){} prefix from assets response', async () => {
+    const withPrefix = `while (1) {}\n${ASSETS_RESPONSE}`;
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(HTML_WITH_IDS) })
+      .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(withPrefix) }),
+    );
+
+    const res = await request(app).get('/api/photos');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBe(2);
+  });
+
+  test('filters out assets without 2048 rendition', async () => {
+    const assetsWithMissing = JSON.stringify({
+      resources: [
+        { asset: { links: { '/rels/rendition_type/2048': { href: 'v2/spaces/s/assets/img1/renditions/2048' } } } },
+        { asset: { links: {} } },
+        { asset: {} },
+      ],
+    });
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(HTML_WITH_IDS) })
+      .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(assetsWithMissing) }),
+    );
+
+    const res = await request(app).get('/api/photos');
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBe(1);
   });
 });

@@ -41,7 +41,7 @@ describe('App', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText('No photos found in album')).toBeInTheDocument();
+      expect(screen.getByText('No photos found in album.')).toBeInTheDocument();
     });
   });
 
