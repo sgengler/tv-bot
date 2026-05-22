@@ -11,11 +11,14 @@ const photos = [
 
 beforeEach(() => {
   vi.useFakeTimers();
+  // Fix Math.random so slide duration is always the minimum (7000ms)
+  vi.spyOn(Math, 'random').mockReturnValue(0);
 });
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('Slideshow', () => {
@@ -28,7 +31,7 @@ describe('Slideshow', () => {
     render(<Slideshow photos={photos} />);
 
     await act(async () => {
-      vi.advanceTimersByTime(10000);
+      vi.advanceTimersByTime(7000);
     });
 
     expect(screen.getByRole('img')).toHaveAttribute('src', photos[1]);
@@ -39,7 +42,7 @@ describe('Slideshow', () => {
 
     for (let i = 0; i < photos.length; i++) {
       await act(async () => {
-        vi.advanceTimersByTime(10000);
+        vi.advanceTimersByTime(7000);
       });
     }
 

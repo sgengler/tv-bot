@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const SLIDE_INTERVAL = 10000;
 const STATIC_COLS = 320;
 const STATIC_ROWS = 240;
+
+function randomSlideDuration() {
+  // Mostly 7–15s, occasionally up to 30s
+  return Math.random() < 0.8
+    ? 7000 + Math.random() * 8000
+    : 15000 + Math.random() * 15000;
+}
 
 function randomStaticDuration() {
   // Weighted: mostly brief (150–500ms), occasionally long (500–2500ms)
@@ -32,26 +38,30 @@ export default function Slideshow({ photos }) {
   }, []);
 
   useEffect(() => {
+    let slideTimer = null;
+
     const advance = () => {
       setIndex(i => (i + 1) % photos.length);
       drawStatic();
 
-      const duration = randomStaticDuration();
+      const staticDuration = randomStaticDuration();
       let elapsed = 0;
       staticTimerRef.current = setInterval(() => {
         drawStatic();
         elapsed += 50;
-        if (elapsed >= duration) {
+        if (elapsed >= staticDuration) {
           clearInterval(staticTimerRef.current);
           const ctx = canvasRef.current?.getContext('2d');
           if (ctx) ctx.clearRect(0, 0, STATIC_COLS, STATIC_ROWS);
         }
       }, 50);
+
+      slideTimer = setTimeout(advance, randomSlideDuration());
     };
 
-    const timer = setInterval(advance, SLIDE_INTERVAL);
+    slideTimer = setTimeout(advance, randomSlideDuration());
     return () => {
-      clearInterval(timer);
+      clearTimeout(slideTimer);
       clearInterval(staticTimerRef.current);
     };
   }, [photos.length, drawStatic]);

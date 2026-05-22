@@ -46,7 +46,6 @@ describe('App', () => {
   });
 
   test('renders Slideshow when photos are returned', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve([
@@ -60,7 +59,5 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/photo1.jpg');
     });
-
-    vi.useRealTimers();
   });
 });
