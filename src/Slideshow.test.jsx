@@ -24,12 +24,11 @@ describe('Slideshow', () => {
     expect(screen.getByRole('img')).toHaveAttribute('src', photos[0]);
   });
 
-  test('advances to the next photo after 10 seconds + 1s fade', async () => {
+  test('advances to the next photo after the slide interval', async () => {
     render(<Slideshow photos={photos} />);
 
     await act(async () => {
-      vi.advanceTimersByTime(10000); // triggers interval
-      vi.advanceTimersByTime(1000);  // completes fade-out timeout
+      vi.advanceTimersByTime(10000);
     });
 
     expect(screen.getByRole('img')).toHaveAttribute('src', photos[1]);
@@ -38,11 +37,9 @@ describe('Slideshow', () => {
   test('wraps around to first photo after the last', async () => {
     render(<Slideshow photos={photos} />);
 
-    // Advance through all photos
     for (let i = 0; i < photos.length; i++) {
       await act(async () => {
         vi.advanceTimersByTime(10000);
-        vi.advanceTimersByTime(1000);
       });
     }
 
