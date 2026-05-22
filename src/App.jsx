@@ -20,7 +20,7 @@ export default function App() {
         setError('No photos found in album.');
         return;
       }
-      setPhotos(data);
+      setPhotos([...data].sort(() => Math.random() - 0.5));
       setError(null);
     } catch {
       setError('Unable to reach the server. Check your connection.');
