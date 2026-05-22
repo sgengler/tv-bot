@@ -25,21 +25,6 @@ body {
   display: block;
 }
 
-/* CRT scanlines */
-.slideshow::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 3px,
-    rgba(0, 0, 0, 0.12) 3px,
-    rgba(0, 0, 0, 0.12) 4px
-  );
-  pointer-events: none;
-  z-index: 1;
-}
 
 .static-overlay {
   position: absolute;
