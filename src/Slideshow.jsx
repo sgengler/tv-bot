@@ -17,10 +17,14 @@ function randomStaticDuration() {
     : 500 + Math.random() * 2000;
 }
 
-export default function Slideshow({ photos }) {
+export default function Slideshow({ items }) {
   const [index, setIndex] = useState(0);
   const canvasRef = useRef(null);
   const staticTimerRef = useRef(null);
+  const segmentTimerRef = useRef(null);
+  const segmentDurationRef = useRef(null);
+
+  const currentItem = items[index];
 
   const drawStatic = useCallback(() => {
     const canvas = canvasRef.current;
@@ -37,45 +41,80 @@ export default function Slideshow({ photos }) {
     ctx.putImageData(imageData, 0, 0);
   }, []);
 
-  useEffect(() => {
-    let slideTimer = null;
-
-    const advance = () => {
-      setIndex(i => (i + 1) % photos.length);
+  const runStaticTransition = useCallback(() => {
+    drawStatic();
+    const staticDuration = randomStaticDuration();
+    let elapsed = 0;
+    clearInterval(staticTimerRef.current);
+    staticTimerRef.current = setInterval(() => {
       drawStatic();
+      elapsed += 50;
+      if (elapsed >= staticDuration) {
+        clearInterval(staticTimerRef.current);
+        const ctx = canvasRef.current?.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, STATIC_COLS, STATIC_ROWS);
+      }
+    }, 50);
+  }, [drawStatic]);
 
-      const staticDuration = randomStaticDuration();
-      let elapsed = 0;
-      staticTimerRef.current = setInterval(() => {
-        drawStatic();
-        elapsed += 50;
-        if (elapsed >= staticDuration) {
-          clearInterval(staticTimerRef.current);
-          const ctx = canvasRef.current?.getContext('2d');
-          if (ctx) ctx.clearRect(0, 0, STATIC_COLS, STATIC_ROWS);
-        }
-      }, 50);
+  const advance = useCallback(() => {
+    setIndex(i => (i + 1) % items.length);
+    runStaticTransition();
+  }, [items.length, runStaticTransition]);
 
-      slideTimer = setTimeout(advance, randomSlideDuration());
-    };
-
-    slideTimer = setTimeout(advance, randomSlideDuration());
-    return () => {
-      clearTimeout(slideTimer);
-      clearInterval(staticTimerRef.current);
-    };
-  }, [photos.length, drawStatic]);
-
-  // Preload next image
+  // Timer-based advancement for photos; videos use onLoadedMetadata + segmentTimer
   useEffect(() => {
-    const nextIndex = (index + 1) % photos.length;
-    const img = new Image();
-    img.src = photos[nextIndex];
-  }, [index, photos]);
+    if (currentItem?.type === 'video') {
+      segmentDurationRef.current = randomSlideDuration();
+      return () => clearTimeout(segmentTimerRef.current);
+    }
+    const timer = setTimeout(advance, randomSlideDuration());
+    return () => clearTimeout(timer);
+  }, [index, currentItem?.type, advance]);
+
+  // Cleanup intervals on unmount
+  useEffect(() => {
+    return () => {
+      clearInterval(staticTimerRef.current);
+      clearTimeout(segmentTimerRef.current);
+    };
+  }, []);
+
+  // Preload next photo
+  useEffect(() => {
+    const next = items[(index + 1) % items.length];
+    if (next?.type === 'photo') {
+      const img = new Image();
+      img.src = next.url;
+    }
+  }, [index, items]);
+
+  const handleVideoMetadata = useCallback((e) => {
+    const video = e.currentTarget;
+    const segmentMs = segmentDurationRef.current;
+    const durationMs = video.duration * 1000;
+    if (durationMs > segmentMs) {
+      video.currentTime = Math.random() * ((durationMs - segmentMs) / 1000);
+      segmentTimerRef.current = setTimeout(advance, segmentMs);
+    }
+    // video shorter than segment: play from 0, onEnded will advance
+  }, [advance]);
 
   return (
     <div className="slideshow">
-      <img src={photos[index]} alt="slideshow" />
+      {currentItem?.type === 'video' ? (
+        <video
+          key={index}
+          src={currentItem.url}
+          autoPlay
+          muted
+          playsInline
+          onLoadedMetadata={handleVideoMetadata}
+          onEnded={advance}
+        />
+      ) : (
+        <img src={currentItem?.url} alt="slideshow" />
+      )}
       <canvas
         ref={canvasRef}
         className="static-overlay"
