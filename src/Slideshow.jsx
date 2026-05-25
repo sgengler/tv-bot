@@ -100,6 +100,10 @@ export default function Slideshow({ items }) {
     // video shorter than segment: play from 0, onEnded will advance
   }, [advance]);
 
+  const preloadVideos = [1, 2]
+    .map(offset => ({ item: items[(index + offset) % items.length], idx: (index + offset) % items.length }))
+    .filter(({ item }) => item?.type === 'video');
+
   return (
     <div className="slideshow">
       {currentItem?.type === 'video' ? (
@@ -115,6 +119,16 @@ export default function Slideshow({ items }) {
       ) : (
         <img src={currentItem?.url} alt="slideshow" />
       )}
+      {preloadVideos.map(({ item, idx }) => (
+        <video
+          key={`preload-${idx}`}
+          src={item.url}
+          preload="auto"
+          muted
+          playsInline
+          style={{ display: 'none' }}
+        />
+      ))}
       <canvas
         ref={canvasRef}
         className="static-overlay"
