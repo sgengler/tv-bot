@@ -43,7 +43,7 @@ app.get('/api/photos', async (req, res) => {
   }
 
   try {
-    const photos = await fetchLightroomAssets(shareUrl, 'image', '/rels/rendition_type/720');
+    const photos = await fetchLightroomAssets(shareUrl, 'image', '/rels/rendition_type/640');
     if (photos.length === 0) {
       return res.json({ error: 'No photos found in Lightroom album.' });
     }
