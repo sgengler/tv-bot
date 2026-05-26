@@ -43,7 +43,7 @@ app.get('/api/photos', async (req, res) => {
   }
 
   try {
-    const photos = await fetchLightroomAssets(shareUrl, 'image', '/rels/rendition_type/2048');
+    const photos = await fetchLightroomAssets(shareUrl, 'image', '/rels/rendition_type/720');
     if (photos.length === 0) {
       return res.json({ error: 'No photos found in Lightroom album.' });
     }
@@ -60,7 +60,7 @@ app.get('/api/videos', async (req, res) => {
   }
 
   try {
-    const videos = await fetchLightroomAssets(shareUrl, 'video', '/rels/rendition_type/720p');
+    const videos = await fetchLightroomAssets(shareUrl, 'video', '/rels/rendition_type/360p');
     if (videos.length === 0) {
       return res.json({ error: 'No videos found in Lightroom album.' });
     }
